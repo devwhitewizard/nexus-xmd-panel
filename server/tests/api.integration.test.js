@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 
 jest.mock('../src/models/user.model');
 jest.mock('../src/models/bot.model');
+jest.mock('../src/models/panelServer.model');
 jest.mock('../src/models/order.model');
 jest.mock('../src/models/transaction.model');
 jest.mock('../src/models/auditLog.model');
@@ -15,6 +16,7 @@ jest.mock('../src/services/bwm/bwm.client');
 const { createApp } = require('../src/app');
 const userModel = require('../src/models/user.model');
 const botModel = require('../src/models/bot.model');
+const panelServerModel = require('../src/models/panelServer.model');
 const orderModel = require('../src/models/order.model');
 const transactionModel = require('../src/models/transaction.model');
 const auditLogModel = require('../src/models/auditLog.model');
@@ -454,6 +456,104 @@ describe('Nexus XMD Reseller Backend API', () => {
         .send({ recovery_authorized: true, reason: 'Customer recovery request' });
       expect(allowed.status).toBe(200);
       expect(botModel.softDeleteBot).toHaveBeenCalledWith(ALICE_BOT.id);
+    });
+  });
+
+  describe('Panel Servers & Currency APIs', () => {
+    it('GET /api/panels/plans returns live panel plans', async () => {
+      bwmClient.request.mockResolvedValue({
+        data: {
+          billing_currency: 'XD',
+          plans: [{ id: 's-5g', name: 'Starter 5GB', ram: '5GB', price_xd: 50 }],
+        },
+      });
+
+      const res = await request(app)
+        .get('/api/panels/plans')
+        .set('Authorization', `Bearer ${ALICE_TOKEN}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.plans).toHaveLength(1);
+    });
+
+    it('POST /api/panels/provision validates plan and saves server record', async () => {
+      bwmClient.request
+        .mockResolvedValueOnce({
+          data: { plans: [{ id: 's-5g', name: 'Starter 5GB', price_xd: 50 }] },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            id: 'panel-100',
+            panel_url: 'https://panel.example.com',
+            username: 'alice_panel',
+            charged_xd: 50,
+            balance_after: 450,
+          },
+        });
+
+      panelServerModel.createPanelServer.mockResolvedValue({
+        id: 'srv-1',
+        user_id: CUSTOMER_A.id,
+        plan_id: 's-5g',
+        username: 'alice_panel',
+        panel_url: 'https://panel.example.com',
+        status: 'active',
+      });
+
+      const res = await request(app)
+        .post('/api/panels/provision')
+        .set('Authorization', `Bearer ${ALICE_TOKEN}`)
+        .send({ username: 'alice_panel', password: 'strongPassword1', plan: 's-5g' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.server.plan_id).toBe('s-5g');
+      expect(res.body.data.billing.charged_xd).toBe(50);
+    });
+
+    it('records uncertain order when panel provisioning times out', async () => {
+      bwmClient.request
+        .mockResolvedValueOnce({
+          data: { plans: [{ id: 's-5g', name: 'Starter 5GB', price_xd: 50 }] },
+        })
+        .mockRejectedValueOnce(new UncertainOperationError('Timeout during provision'));
+
+      const res = await request(app)
+        .post('/api/panels/provision')
+        .set('Authorization', `Bearer ${ALICE_TOKEN}`)
+        .send({ username: 'alice_panel', password: 'strongPassword1', plan: 's-5g' });
+
+      expect(res.status).toBe(502);
+      expect(res.body.error.code).toBe('UNCERTAIN_PAID_OPERATION');
+    });
+
+    it('GET /api/currency/rates and POST /api/currency/convert work with validation', async () => {
+      bwmClient.request
+        .mockResolvedValueOnce({
+          data: {
+            currencies: [{ currency: 'KES', symbol: 'KSH', xd_per_unit: 0.72 }],
+          },
+        })
+        .mockResolvedValueOnce({
+          data: { amount: 50, from: 'XD', to: 'KES', result: 69.5 },
+        });
+
+      const ratesRes = await request(app)
+        .get('/api/currency/rates')
+        .set('Authorization', `Bearer ${ALICE_TOKEN}`);
+      expect(ratesRes.status).toBe(200);
+
+      const badConvert = await request(app)
+        .post('/api/currency/convert')
+        .set('Authorization', `Bearer ${ALICE_TOKEN}`)
+        .send({ amount: -10, from: 'XD', to: 'KES' });
+      expect(badConvert.status).toBe(400);
+
+      const convertRes = await request(app)
+        .post('/api/currency/convert')
+        .set('Authorization', `Bearer ${ALICE_TOKEN}`)
+        .send({ amount: 50, from: 'XD', to: 'KES' });
+      expect(convertRes.status).toBe(200);
+      expect(convertRes.body.data.result).toBe(69.5);
     });
   });
 });

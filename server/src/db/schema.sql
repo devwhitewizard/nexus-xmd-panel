@@ -117,3 +117,22 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs (user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs (action);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
 
+-- 7. Panel Servers (Provisioned panel server ownership & records)
+CREATE TABLE IF NOT EXISTS panel_servers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
+  bwm_panel_id VARCHAR(128),
+  plan_id VARCHAR(64) NOT NULL,
+  plan_name VARCHAR(128),
+  panel_url TEXT,
+  username VARCHAR(128) NOT NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'active',
+  bwm_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_panel_servers_user_id ON panel_servers (user_id);
+CREATE INDEX IF NOT EXISTS idx_panel_servers_created_at ON panel_servers (created_at DESC);
+

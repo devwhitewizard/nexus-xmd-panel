@@ -10,6 +10,8 @@ const { sendSuccess } = require('./utils/apiResponse');
 const authRoutes = require('./routes/auth.routes');
 const accountRoutes = require('./routes/account.routes');
 const botsRoutes = require('./routes/bots.routes');
+const panelsRoutes = require('./routes/panels.routes');
+const currencyRoutes = require('./routes/currency.routes');
 const adminRoutes = require('./routes/admin.routes');
 
 function createApp() {
@@ -67,6 +69,8 @@ function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/account', accountRoutes);
   app.use('/api/bots', botsRoutes);
+  app.use('/api/panels', panelsRoutes);
+  app.use('/api/currency', currencyRoutes);
   app.use('/api/admin', adminRoutes);
 
   app.use(notFoundHandler);
