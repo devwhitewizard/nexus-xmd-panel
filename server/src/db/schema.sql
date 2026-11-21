@@ -136,3 +136,54 @@ CREATE TABLE IF NOT EXISTS panel_servers (
 CREATE INDEX IF NOT EXISTS idx_panel_servers_user_id ON panel_servers (user_id);
 CREATE INDEX IF NOT EXISTS idx_panel_servers_created_at ON panel_servers (created_at DESC);
 
+-- 8. Panel Connections (Dynamic Pterodactyl installations only; BWM XMD stays in server .env)
+CREATE TABLE IF NOT EXISTS panel_connections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider_key VARCHAR(40) NOT NULL DEFAULT 'pterodactyl' CHECK (provider_key = 'pterodactyl'),
+  label VARCHAR(120) NOT NULL UNIQUE,
+  panel_url TEXT NOT NULL,
+  api_key_encrypted TEXT NOT NULL,
+  description TEXT,
+  is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  connection_status VARCHAR(30) NOT NULL DEFAULT 'untested' CHECK (
+    connection_status IN ('untested', 'connected', 'failed')
+  ),
+  last_tested_at TIMESTAMPTZ,
+  last_error TEXT,
+  default_config JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_panel_connections_enabled ON panel_connections (is_enabled);
+CREATE INDEX IF NOT EXISTS idx_panel_connections_status ON panel_connections (connection_status);
+
+ALTER TABLE panel_servers
+  ADD COLUMN IF NOT EXISTS connection_id UUID REFERENCES panel_connections(id) ON DELETE RESTRICT;
+
+CREATE INDEX IF NOT EXISTS idx_panel_servers_connection_id ON panel_servers (connection_id);
+
+-- 9. Panel Resources (Cached discovered resources & manual overrides per Pterodactyl connection)
+CREATE TABLE IF NOT EXISTS panel_resources (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  connection_id UUID NOT NULL UNIQUE REFERENCES panel_connections(id) ON DELETE CASCADE,
+  discovered_nests JSONB NOT NULL DEFAULT '[]'::jsonb,
+  discovered_eggs JSONB NOT NULL DEFAULT '[]'::jsonb,
+  discovered_locations JSONB NOT NULL DEFAULT '[]'::jsonb,
+  discovered_nodes JSONB NOT NULL DEFAULT '[]'::jsonb,
+  discovered_allocations JSONB NOT NULL DEFAULT '[]'::jsonb,
+  manual_overrides JSONB NOT NULL DEFAULT '{}'::jsonb,
+  discovery_status VARCHAR(30) NOT NULL DEFAULT 'pending' CHECK (
+    discovery_status IN ('pending', 'synced', 'failed')
+  ),
+  last_synced_at TIMESTAMPTZ,
+  last_attempted_at TIMESTAMPTZ,
+  last_error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_panel_resources_connection_id ON panel_resources (connection_id);
+CREATE INDEX IF NOT EXISTS idx_panel_resources_status ON panel_resources (discovery_status);
+

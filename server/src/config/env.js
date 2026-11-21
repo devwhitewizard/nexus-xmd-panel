@@ -33,6 +33,10 @@ const env = {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
 
+  encryption: {
+    masterKey: process.env.ENCRYPTION_MASTER_KEY || '',
+  },
+
   bwm: {
     baseUrl: (process.env.BWM_API_BASE_URL || 'https://pro.bwmxmd.co.ke/api/v1').replace(/\/+$/, ''),
     apiKey: process.env.BWM_API_KEY || '',
@@ -56,6 +60,9 @@ function validateRequiredEnv() {
   }
   if (!env.db.connectionString) {
     missing.push('DATABASE_URL');
+  }
+  if (!env.encryption.masterKey) {
+    missing.push('ENCRYPTION_MASTER_KEY');
   }
   if (missing.length > 0 && env.isProduction) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
