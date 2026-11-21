@@ -556,5 +556,58 @@ describe('Nexus XMD Reseller Backend API', () => {
       expect(convertRes.body.data.result).toBe(69.5);
     });
   });
+
+  describe('Customer Orders & Transactions', () => {
+    it('GET /api/orders and GET /api/transactions return scoped customer records without reseller balance_after', async () => {
+      orderModel.findByUserId.mockResolvedValue([
+        {
+          id: 'ord-1',
+          user_id: CUSTOMER_A.id,
+          bot_id: ALICE_BOT.id,
+          service_type: 'bot_deploy',
+          status: 'completed',
+          days: 30,
+          charged_xd: '15.0000',
+          balance_after: '9999.0000',
+          error_message: null,
+          created_at: '2026-11-20T00:00:00.000Z',
+          updated_at: '2026-11-20T00:00:00.000Z',
+        },
+      ]);
+
+      transactionModel.findByUserId.mockResolvedValue([
+        {
+          id: 'tx-1',
+          order_id: 'ord-1',
+          ledger_type: 'bwm_xd',
+          direction: 'debit',
+          amount: '15.0000',
+          currency: 'XD',
+          balance_after: '9999.0000',
+          status: 'completed',
+          description: 'Bot deployment',
+          created_at: '2026-11-20T00:00:00.000Z',
+        },
+      ]);
+
+      const ordersRes = await request(app)
+        .get('/api/orders')
+        .set('Authorization', `Bearer ${ALICE_TOKEN}`);
+
+      expect(ordersRes.status).toBe(200);
+      expect(ordersRes.body.data.orders).toHaveLength(1);
+      expect(ordersRes.body.data.orders[0].balance_after).toBeUndefined();
+      expect(orderModel.findByUserId).toHaveBeenCalledWith(CUSTOMER_A.id, { limit: 50, offset: 0 });
+
+      const txRes = await request(app)
+        .get('/api/transactions')
+        .set('Authorization', `Bearer ${ALICE_TOKEN}`);
+
+      expect(txRes.status).toBe(200);
+      expect(txRes.body.data.transactions).toHaveLength(1);
+      expect(txRes.body.data.transactions[0].balance_after).toBeNull();
+      expect(transactionModel.findByUserId).toHaveBeenCalledWith(CUSTOMER_A.id, { limit: 50, offset: 0 });
+    });
+  });
 });
 

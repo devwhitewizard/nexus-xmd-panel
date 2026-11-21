@@ -12,6 +12,8 @@ const accountRoutes = require('./routes/account.routes');
 const botsRoutes = require('./routes/bots.routes');
 const panelsRoutes = require('./routes/panels.routes');
 const currencyRoutes = require('./routes/currency.routes');
+const ordersRoutes = require('./routes/orders.routes');
+const transactionsRoutes = require('./routes/transactions.routes');
 const adminRoutes = require('./routes/admin.routes');
 
 function createApp() {
@@ -71,6 +73,8 @@ function createApp() {
   app.use('/api/bots', botsRoutes);
   app.use('/api/panels', panelsRoutes);
   app.use('/api/currency', currencyRoutes);
+  app.use('/api/orders', ordersRoutes);
+  app.use('/api/transactions', transactionsRoutes);
   app.use('/api/admin', adminRoutes);
 
   app.use(notFoundHandler);

@@ -15,6 +15,12 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { listBots } from "@/services/bots.service";
 import { getBwmAccountBalance, getBwmAccountOrders } from "@/services/account.service";
+import {
+  getMyOrders,
+  getMyTransactions,
+  type CustomerOrder,
+  type CustomerTransaction,
+} from "@/services/orders.service";
 import { ApiClientError } from "@/services/apiClient";
 import type { BotRecord, BwmAccountBalance, BwmApiOrderCall } from "@/types/api";
 import { Button } from "@/components/ui/button";
@@ -34,6 +40,8 @@ function AccountPageContent() {
 
   const [activeTab, setActiveTab] = useState<"profile" | "bwm">(initialTab);
   const [bots, setBots] = useState<BotRecord[]>([]);
+  const [myOrders, setMyOrders] = useState<CustomerOrder[]>([]);
+  const [myTransactions, setMyTransactions] = useState<CustomerTransaction[]>([]);
   const [bwmBalance, setBwmBalance] = useState<BwmAccountBalance | null>(null);
   const [bwmOrders, setBwmOrders] = useState<BwmApiOrderCall[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,8 +58,14 @@ function AccountPageContent() {
     setError(null);
     try {
       await refreshUser();
-      const botsData = await listBots();
+      const [botsData, ordersData, txData] = await Promise.all([
+        listBots(),
+        getMyOrders(),
+        getMyTransactions(),
+      ]);
       setBots(botsData);
+      setMyOrders(ordersData);
+      setMyTransactions(txData);
 
       if (isAdmin) {
         const [balanceRes, ordersRes] = await Promise.all([
@@ -191,17 +205,101 @@ function AccountPageContent() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Customer Orders & Transactions</CardTitle>
+              <CardTitle>My Orders ({myOrders.length})</CardTitle>
               <CardDescription>
-                Personal order history and wallet ledger
+                Your recent service orders from GET /api/orders
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <EmptyState
-                icon={Wallet}
-                title="Customer Orders API Not Yet Enabled"
-                description="Customer-scoped /api/orders and /api/transactions endpoints are not yet exposed on the backend. This section will populate automatically once enabled."
-              />
+              {myOrders.length === 0 ? (
+                <EmptyState
+                  icon={Wallet}
+                  title="No Orders Yet"
+                  description="Your bot deployments, extensions, and panel provisioning orders will appear here."
+                />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b border-border text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="py-2.5 pr-4">Service</th>
+                        <th className="py-2.5 pr-4">Status</th>
+                        <th className="py-2.5 pr-4">Duration</th>
+                        <th className="py-2.5 pr-4">Amount</th>
+                        <th className="py-2.5">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {myOrders.map((order) => (
+                        <tr key={order.id}>
+                          <td className="py-2.5 pr-4 font-mono text-xs">{order.service_type}</td>
+                          <td className="py-2.5 pr-4">
+                            <StatusBadge status={order.status} />
+                          </td>
+                          <td className="py-2.5 pr-4 text-xs">
+                            {order.days ? `${order.days} days` : "—"}
+                          </td>
+                          <td className="py-2.5 pr-4 text-xs font-medium">
+                            {order.charged_xd !== null ? `${order.charged_xd} XD` : "—"}
+                          </td>
+                          <td className="py-2.5 text-xs text-muted-foreground">
+                            {new Date(order.created_at).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Transaction History ({myTransactions.length})</CardTitle>
+              <CardDescription>
+                Your ledger records from GET /api/transactions
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {myTransactions.length === 0 ? (
+                <EmptyState
+                  icon={Wallet}
+                  title="No Transactions Yet"
+                  description="Completed and pending ledger entries for your account will appear here."
+                />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b border-border text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="py-2.5 pr-4">Description</th>
+                        <th className="py-2.5 pr-4">Direction</th>
+                        <th className="py-2.5 pr-4">Amount</th>
+                        <th className="py-2.5 pr-4">Status</th>
+                        <th className="py-2.5">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {myTransactions.map((tx) => (
+                        <tr key={tx.id}>
+                          <td className="py-2.5 pr-4 text-xs">{tx.description || "—"}</td>
+                          <td className="py-2.5 pr-4 text-xs capitalize">{tx.direction}</td>
+                          <td className="py-2.5 pr-4 text-xs font-medium">
+                            {tx.amount} {tx.currency}
+                          </td>
+                          <td className="py-2.5 pr-4">
+                            <StatusBadge status={tx.status} />
+                          </td>
+                          <td className="py-2.5 text-xs text-muted-foreground">
+                            {new Date(tx.created_at).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
