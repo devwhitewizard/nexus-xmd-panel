@@ -3,7 +3,10 @@ const panelResourceModel = require('../models/panelResource.model');
 const auditLogModel = require('../models/auditLog.model');
 const { providerManager } = require('../providers/providerManager');
 const { decryptSecret } = require('../utils/crypto');
-const { BadRequestError, NotFoundError } = require('../utils/errors');
+const { BadRequestError, ConflictError, NotFoundError } = require('../utils/errors');
+
+// Tracks in-flight discovery refreshes per connectionId to prevent concurrent overwrites
+const activeRefreshes = new Map();
 
 function buildEmptyResourceView(connectionId) {
   return {
@@ -31,12 +34,25 @@ async function getResources(connectionId) {
   return record || buildEmptyResourceView(connectionId);
 }
 
+/**
+ * Synchronize nests, eggs, locations, nodes, and allocations from a Pterodactyl panel.
+ * Prevents concurrent refreshes on the same connection and preserves prior snapshots on failure.
+ */
 async function refreshResources(adminUser, connectionId, reqMeta = {}) {
+  if (activeRefreshes.has(connectionId)) {
+    throw new ConflictError(
+      'Resource discovery is already in progress for this connection',
+      {},
+      'DISCOVERY_ALREADY_IN_PROGRESS'
+    );
+  }
+
   const conn = await panelConnectionModel.findEncryptedById(connectionId);
   if (!conn) {
     throw new NotFoundError('Panel connection not found', {}, 'CONNECTION_NOT_FOUND');
   }
 
+  activeRefreshes.set(connectionId, true);
   const apiKey = decryptSecret(conn.api_key_encrypted);
   const pteroProvider = providerManager.getProvider('pterodactyl');
 
@@ -81,6 +97,8 @@ async function refreshResources(adminUser, connectionId, reqMeta = {}) {
     });
 
     throw err;
+  } finally {
+    activeRefreshes.delete(connectionId);
   }
 }
 

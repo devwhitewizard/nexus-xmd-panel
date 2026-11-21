@@ -187,3 +187,70 @@ CREATE TABLE IF NOT EXISTS panel_resources (
 CREATE INDEX IF NOT EXISTS idx_panel_resources_connection_id ON panel_resources (connection_id);
 CREATE INDEX IF NOT EXISTS idx_panel_resources_status ON panel_resources (discovery_status);
 
+-- 10. Server Packages (Admin-configured packages for Pterodactyl & BWM XMD)
+CREATE TABLE IF NOT EXISTS server_packages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(120) NOT NULL UNIQUE,
+  description TEXT,
+  price NUMERIC(14, 4) NOT NULL CHECK (price >= 0),
+  currency VARCHAR(16) NOT NULL DEFAULT 'XD',
+  provider_key VARCHAR(40) NOT NULL CHECK (provider_key IN ('pterodactyl', 'bwm-xmd')),
+  connection_id UUID REFERENCES panel_connections(id) ON DELETE RESTRICT,
+  bwm_plan_id VARCHAR(64),
+  memory_mb INTEGER NOT NULL DEFAULT 512 CHECK (memory_mb >= 0),
+  disk_mb INTEGER NOT NULL DEFAULT 1024 CHECK (disk_mb >= 0),
+  cpu_percent INTEGER NOT NULL DEFAULT 100 CHECK (cpu_percent >= 0),
+  swap_mb INTEGER NOT NULL DEFAULT 0 CHECK (swap_mb >= 0),
+  io_weight INTEGER NOT NULL DEFAULT 500 CHECK (io_weight >= 10 AND io_weight <= 1000),
+  database_limit INTEGER NOT NULL DEFAULT 0 CHECK (database_limit >= 0),
+  backup_limit INTEGER NOT NULL DEFAULT 0 CHECK (backup_limit >= 0),
+  allocation_limit INTEGER NOT NULL DEFAULT 1 CHECK (allocation_limit >= 1),
+  nest_id INTEGER,
+  egg_id INTEGER,
+  location_id INTEGER,
+  node_id INTEGER,
+  allocation_id INTEGER,
+  egg_environment JSONB NOT NULL DEFAULT '{}'::jsonb,
+  is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT chk_pterodactyl_package_connection CHECK (
+    (provider_key = 'pterodactyl' AND connection_id IS NOT NULL) OR
+    (provider_key = 'bwm-xmd' AND connection_id IS NULL)
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_server_packages_provider ON server_packages (provider_key);
+CREATE INDEX IF NOT EXISTS idx_server_packages_enabled ON server_packages (is_enabled);
+CREATE INDEX IF NOT EXISTS idx_server_packages_connection ON server_packages (connection_id);
+
+ALTER TABLE panel_servers
+  ADD COLUMN IF NOT EXISTS package_id UUID REFERENCES server_packages(id) ON DELETE RESTRICT;
+
+ALTER TABLE panel_servers
+  ADD COLUMN IF NOT EXISTS provider_key VARCHAR(40) NOT NULL DEFAULT 'bwm-xmd';
+
+ALTER TABLE panel_servers
+  ADD COLUMN IF NOT EXISTS external_server_id VARCHAR(128);
+
+ALTER TABLE panel_servers
+  ADD COLUMN IF NOT EXISTS provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE INDEX IF NOT EXISTS idx_panel_servers_provider_key ON panel_servers (provider_key);
+
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS package_id UUID REFERENCES server_packages(id) ON DELETE RESTRICT;
+
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS provider_key VARCHAR(40);
+
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS connection_id UUID REFERENCES panel_connections(id) ON DELETE RESTRICT;
+
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS provider_assignment_snapshot JSONB;
+
+CREATE INDEX IF NOT EXISTS idx_orders_provider_key ON orders (provider_key);
+CREATE INDEX IF NOT EXISTS idx_orders_connection_id ON orders (connection_id);
+

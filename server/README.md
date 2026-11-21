@@ -117,6 +117,27 @@ All `:id` routes enforce ownership (`customer` owns the bot, or `admin`).
 - `GET /api/admin/settings` — List platform settings.
 - `PUT /api/admin/settings` — Upsert a platform setting (`{ "key": "...", "value": {}, "description": "..." }`).
 
+### Multi-Provider Panels, Connections, Discovery & Packages (`/api/panels`)
+- **Existing BWM XMD Panels (Authenticated):**
+  - `GET /api/panels/plans` — Live BWM XMD panel plans.
+  - `GET /api/panels` — Customer-owned saved panel records.
+  - `POST /api/panels/provision` — Provision a BWM XMD panel (`{ "username", "password", "plan" }`).
+- **Providers & Pterodactyl Connections (Admin Only):**
+  - `GET /api/panels/providers` — List registered providers & explicit capabilities.
+  - `GET /api/panels/connections` / `POST /api/panels/connections` — List or register Pterodactyl connections (`ENCRYPTION_MASTER_KEY` AES-256-GCM encrypted API keys, SSRF + DNS-rebinding protected).
+  - `GET/PUT/DELETE /api/panels/connections/:id` & `PATCH /api/panels/connections/:id/status` — Inspect, update/rotate key, enable/disable, or safely delete connections.
+  - `POST /api/panels/connections/:id/test` — Safe read-only Application API verification.
+  - `GET /api/panels/connections/:id/resources`, `POST .../resources/refresh`, `PUT .../resources/configuration` — Cached discovery snapshots & validated manual overrides.
+- **Server Packages (`server_packages` table):**
+  - **Customer (Read-Only):** `GET /api/panels/packages`, `GET /api/panels/packages/:id` — Returns enabled and currently available packages (strips internal `connection_id` and `provider_key`).
+  - **Admin:** `GET /api/panels/admin/packages`, `POST /api/panels/admin/packages`, `GET/PUT/DELETE /api/panels/admin/packages/:id`, `PATCH /api/panels/admin/packages/:id/status`.
+  - **Validation Rules:** Pterodactyl packages require an enabled `connection_id`, a completed resource discovery snapshot, valid `nest_id` + matching `egg_id`, and valid `location_id`/`node_id`/`allocation_id` (matching node). BWM XMD packages must not set `connection_id` and validate optional `bwm_plan_id` against live BWM plans. Deletion is blocked (`409 PACKAGE_IN_USE`) if dependent `panel_servers` or `orders` exist.
+- **Provider Assignment & Resolution (Admin Only):**
+  - `GET /api/panels/admin/providers` — Lists registered providers with `declared_capabilities`, `implemented_capabilities`, and `is_enabled` status.
+  - `GET /api/panels/admin/provider-assignments` & `GET /api/panels/admin/provider-assignments/:packageId` — Lists or views package provider assignments and validation status.
+  - `PUT /api/panels/admin/provider-assignments/:packageId` — Assigns/changes a package's provider and connection for **future orders only** (existing orders retain their immutable `provider_assignment_snapshot`, and existing servers retain their original `provider_key`/`connection_id`).
+  - `POST /api/panels/admin/provider-assignments/:packageId/validate` — Validates a package's provider assignment without modifying it.
+
 ### Future Modular Services (`src/services/future/`)
 Prepared placeholders (no undocumented endpoints):
 - `socialBoost.service.js` — Social Media Boosting
