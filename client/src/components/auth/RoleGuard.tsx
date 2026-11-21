@@ -1,10 +1,9 @@
 "use client";
 
-import { ShieldAlert } from "lucide-react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import type { UserRole } from "@/types/api";
-import { EmptyState } from "@/components/shared/EmptyState";
 
 interface RoleGuardProps {
   allowedRoles: UserRole[];
@@ -12,21 +11,20 @@ interface RoleGuardProps {
 }
 
 export function RoleGuard({ allowedRoles, children }: RoleGuardProps) {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const router = useRouter();
 
-  if (!user || !allowedRoles.includes(user.role)) {
-    return (
-      <EmptyState
-        icon={ShieldAlert}
-        title="Access Restricted"
-        description="You do not have permission to view this section."
-        actionLabel="Return to Dashboard"
-        onAction={() => router.push("/")}
-      />
-    );
+  const isAuthorized = Boolean(user && allowedRoles.includes(user.role));
+
+  useEffect(() => {
+    if (!isLoading && !isAuthorized) {
+      router.replace("/");
+    }
+  }, [isAuthorized, isLoading, router]);
+
+  if (isLoading || !isAuthorized) {
+    return null;
   }
 
   return <>{children}</>;
 }
-
