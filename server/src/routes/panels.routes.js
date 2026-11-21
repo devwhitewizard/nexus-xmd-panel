@@ -3,6 +3,8 @@ const panelsController = require('../controllers/panels.controller');
 const panelConnectionsController = require('../controllers/panelConnections.controller');
 const serverPackagesController = require('../controllers/serverPackages.controller');
 const providerAssignmentController = require('../controllers/providerAssignment.controller');
+const provisioningController = require('../controllers/provisioning.controller');
+const serverManagementController = require('../controllers/serverManagement.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 const { requireRole } = require('../middleware/role.middleware');
 const { validateProvisionPanel } = require('../validators/panels.validator');
@@ -23,6 +25,15 @@ const {
   validatePackageIdRouteParam,
   validateAssignProvider,
 } = require('../validators/providerAssignment.validator');
+const {
+  validateOrderIdParam,
+  validateProvisioningIdParam,
+  validateProvisionOrderBody,
+} = require('../validators/provisioning.validator');
+const {
+  validateServerIdParam,
+  validateListServersQuery,
+} = require('../validators/serverManagement.validator');
 
 const router = express.Router();
 
@@ -164,6 +175,69 @@ router.post(
   requireRole('admin'),
   validatePackageIdRouteParam,
   providerAssignmentController.validateAssignment
+);
+
+// Customer order-based server provisioning (immutable assignment, DB idempotency)
+router.post(
+  '/orders/:orderId/provision',
+  validateOrderIdParam,
+  validateProvisionOrderBody,
+  provisioningController.provisionOrder
+);
+router.get(
+  '/orders/:orderId/provisioning-status',
+  validateOrderIdParam,
+  provisioningController.getOrderProvisioningStatus
+);
+
+// Admin provisioning monitoring, reconciliation & authorized retry
+router.get(
+  '/admin/provisioning',
+  requireRole('admin'),
+  provisioningController.listProvisioningAdmin
+);
+router.get(
+  '/admin/provisioning/:id',
+  requireRole('admin'),
+  validateProvisioningIdParam,
+  provisioningController.getProvisioningAdmin
+);
+router.post(
+  '/admin/provisioning/:id/reconcile',
+  requireRole('admin'),
+  validateProvisioningIdParam,
+  provisioningController.reconcileProvisioning
+);
+router.post(
+  '/admin/provisioning/:id/retry',
+  requireRole('admin'),
+  validateProvisioningIdParam,
+  validateProvisionOrderBody,
+  provisioningController.retryProvisioning
+);
+
+// Customer server management (ownership-enforced, capability-aware)
+router.get('/servers', validateListServersQuery, serverManagementController.listServers);
+router.get('/servers/:id', validateServerIdParam, serverManagementController.getServerDetails);
+router.post(
+  '/servers/:id/power/start',
+  validateServerIdParam,
+  serverManagementController.startServer
+);
+router.post(
+  '/servers/:id/power/stop',
+  validateServerIdParam,
+  serverManagementController.stopServer
+);
+router.post(
+  '/servers/:id/power/restart',
+  validateServerIdParam,
+  serverManagementController.restartServer
+);
+router.get(
+  '/servers/:id/resources',
+  validateServerIdParam,
+  serverManagementController.getServerResources
 );
 
 module.exports = router;

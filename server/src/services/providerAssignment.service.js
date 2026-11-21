@@ -28,10 +28,10 @@ const IMPLEMENTED_CAPABILITIES = Object.freeze({
   pterodactyl: {
     testConnection: true,
     discoverResources: true,
-    provisionServer: false, // Scheduled for Phase 7
-    getServerDetails: false, // Scheduled for Phase 8
-    setPowerState: false, // Scheduled for Phase 8
-    getServerResources: false, // Scheduled for Phase 8
+    provisionServer: true,
+    getServerDetails: true,
+    setPowerState: true,
+    getServerResources: true,
   },
 });
 

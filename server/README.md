@@ -137,6 +137,14 @@ All `:id` routes enforce ownership (`customer` owns the bot, or `admin`).
   - `GET /api/panels/admin/provider-assignments` & `GET /api/panels/admin/provider-assignments/:packageId` — Lists or views package provider assignments and validation status.
   - `PUT /api/panels/admin/provider-assignments/:packageId` — Assigns/changes a package's provider and connection for **future orders only** (existing orders retain their immutable `provider_assignment_snapshot`, and existing servers retain their original `provider_key`/`connection_id`).
   - `POST /api/panels/admin/provider-assignments/:packageId/validate` — Validates a package's provider assignment without modifying it.
+- **Order-Based Server Provisioning & Reconciliation (`provisioning_logs` table):**
+  - **Customer (Owned Orders):**
+    - `POST /api/panels/orders/:orderId/provision` — Provisions an eligible (`completed`/`paid`/`accepted`) order using its immutable `provider_assignment_snapshot` and PostgreSQL row-level locking + DB idempotency (`order:<id>:attempt:<n>`).
+    - `GET /api/panels/orders/:orderId/provisioning-status` — Retrieves provisioning state (`pending`, `processing`, `successful`, `failed`, `uncertain`) and associated server record.
+  - **Admin:**
+    - `GET /api/panels/admin/provisioning` & `GET /api/panels/admin/provisioning/:id` — Inspect provisioning logs.
+    - `POST /api/panels/admin/provisioning/:id/reconcile` — Safely queries Pterodactyl by `external_id` (`idempotency_key`) to confirm creation or non-creation before allowing any retry.
+    - `POST /api/panels/admin/provisioning/:id/retry` — Authorizes a new attempt **only** when the prior log is definitively `failed` (blocked with `409 RETRY_NOT_ALLOWED` for `uncertain`).
 
 ### Future Modular Services (`src/services/future/`)
 Prepared placeholders (no undocumented endpoints):

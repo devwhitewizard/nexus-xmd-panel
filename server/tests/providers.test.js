@@ -80,12 +80,12 @@ describe('Phase 2 — Multi-Provider Foundation', () => {
     expect(resources.plans[0].id).toBe('s-5g');
   });
 
-  it('Pterodactyl foundation reports pending implementation cleanly for upcoming phases', async () => {
+  it('Pterodactyl provider rejects missing configuration cleanly when called directly', async () => {
     const ptero = providerManager.getProvider('pterodactyl');
-    await expect(ptero.provisionServer()).rejects.toBeInstanceOf(AppError);
-    await expect(ptero.provisionServer()).rejects.toMatchObject({
-      statusCode: 501,
-      code: 'PTERODACTYL_PHASE_PENDING',
+    await expect(ptero.getServerDetails()).rejects.toBeInstanceOf(AppError);
+    await expect(ptero.getServerDetails()).rejects.toMatchObject({
+      statusCode: 400,
+      code: 'INVALID_API_KEY',
     });
   });
 });

@@ -237,7 +237,11 @@ ALTER TABLE panel_servers
 ALTER TABLE panel_servers
   ADD COLUMN IF NOT EXISTS provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
 
+ALTER TABLE panel_servers
+  ADD COLUMN IF NOT EXISTS server_name VARCHAR(128);
+
 CREATE INDEX IF NOT EXISTS idx_panel_servers_provider_key ON panel_servers (provider_key);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_panel_servers_unique_order ON panel_servers (order_id) WHERE order_id IS NOT NULL;
 
 ALTER TABLE orders
   ADD COLUMN IF NOT EXISTS package_id UUID REFERENCES server_packages(id) ON DELETE RESTRICT;
@@ -253,4 +257,37 @@ ALTER TABLE orders
 
 CREATE INDEX IF NOT EXISTS idx_orders_provider_key ON orders (provider_key);
 CREATE INDEX IF NOT EXISTS idx_orders_connection_id ON orders (connection_id);
+
+-- 11. Provisioning Logs (Database-backed idempotency & state machine for server provisioning)
+CREATE TABLE IF NOT EXISTS provisioning_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
+  server_id UUID REFERENCES panel_servers(id) ON DELETE SET NULL,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  provider_key VARCHAR(40) NOT NULL CHECK (provider_key IN ('pterodactyl', 'bwm-xmd')),
+  connection_id UUID REFERENCES panel_connections(id) ON DELETE RESTRICT,
+  idempotency_key VARCHAR(160) NOT NULL UNIQUE,
+  status VARCHAR(30) NOT NULL DEFAULT 'pending' CHECK (
+    status IN ('pending', 'processing', 'successful', 'failed', 'uncertain')
+  ),
+  provider_request_id VARCHAR(128),
+  external_server_id VARCHAR(128),
+  request_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  response_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  error_code VARCHAR(80),
+  error_message TEXT,
+  attempt_count INTEGER NOT NULL DEFAULT 1 CHECK (attempt_count >= 1),
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_provisioning_logs_order_id ON provisioning_logs (order_id);
+CREATE INDEX IF NOT EXISTS idx_provisioning_logs_user_id ON provisioning_logs (user_id);
+CREATE INDEX IF NOT EXISTS idx_provisioning_logs_status ON provisioning_logs (status);
+-- Enforces at DB level that an order cannot have concurrent/duplicate active or successful provisioning
+CREATE UNIQUE INDEX IF NOT EXISTS idx_provisioning_active_order
+  ON provisioning_logs (order_id)
+  WHERE status IN ('pending', 'processing', 'successful', 'uncertain');
 

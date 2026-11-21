@@ -163,7 +163,8 @@ describe('Phase 6 — Provider Assignment & Selection', () => {
     expect(res.status).toBe(200);
     const ptero = res.body.data.providers.find((p) => p.key === 'pterodactyl');
     expect(ptero.declared_capabilities.provisionServer).toBe(true);
-    expect(ptero.implemented_capabilities.provisionServer).toBe(false);
+    expect(ptero.implemented_capabilities.provisionServer).toBe(true);
+    expect(ptero.implemented_capabilities.getServerDetails).toBe(true);
     expect(ptero.implemented_capabilities.discoverResources).toBe(true);
   });
 
